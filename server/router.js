@@ -247,34 +247,20 @@ router.get('/api/daily', async (_req, res) => {
     await saveSettings(settings);
   }
 
-  // Return all read articles + current batch of unread ones
+  // Position-based: show articles 0..watermark from dailyArticleIds
+  // Watermark only advances when user clicks "show more"
   const articles = await getArticles();
   const ratings = await getRatings();
   const batchSize = settings.dailyArticleCount || 3;
   const batchIndex = settings.dailyBatchIndex || 0;
+  const watermark = (batchIndex + 1) * batchSize;
 
-  const allDailyArticles = settings.dailyArticleIds
+  const visibleIds = settings.dailyArticleIds.slice(0, watermark);
+  const visibleArticles = visibleIds
     .map((id) => articles.find((a) => a.id === id))
     .filter(Boolean);
 
-  // Split into read and unread
-  const readArticles = allDailyArticles.filter((a) => a.readAt);
-  const unreadArticles = allDailyArticles.filter((a) => !a.readAt);
-
-  // Show all read articles + unread up to current batch window
-  const unreadEnd = (batchIndex + 1) * batchSize;
-  const unreadBatch = unreadArticles.slice(0, unreadEnd);
-  const visibleArticles = [...readArticles, ...unreadBatch];
-
-  // Deduplicate (a read article won't also be in unreadBatch, but just in case)
-  const seenIds = new Set();
-  const deduped = visibleArticles.filter((a) => {
-    if (seenIds.has(a.id)) return false;
-    seenIds.add(a.id);
-    return true;
-  });
-
-  const enriched = deduped.map((article) => {
+  const enriched = visibleArticles.map((article) => {
     const feed = feeds.find((f) => f.id === article.feedId);
     const rated = ratings.some((r) => r.articleId === article.id);
     return {
@@ -288,7 +274,7 @@ router.get('/api/daily', async (_req, res) => {
 
   res.json({
     articles: enriched,
-    hasMore: unreadEnd < unreadArticles.length,
+    hasMore: watermark < settings.dailyArticleIds.length,
     batchIndex,
   });
 });
@@ -305,17 +291,15 @@ router.post('/api/daily/more', async (_req, res) => {
   const ratings = await getRatings();
   const feeds = await getFeeds();
 
-  // Only return the next batch of *unread* articles
-  const allDailyArticles = (settings.dailyArticleIds || [])
-    .map((id) => articles.find((a) => a.id === id))
-    .filter(Boolean);
-  const unreadArticles = allDailyArticles.filter((a) => !a.readAt);
-
+  // Return only the new batch of articles
   const start = newBatchIndex * batchSize;
   const end = (newBatchIndex + 1) * batchSize;
-  const batch = unreadArticles.slice(start, end);
+  const batchIds = (settings.dailyArticleIds || []).slice(start, end);
+  const batchArticles = batchIds
+    .map((id) => articles.find((a) => a.id === id))
+    .filter(Boolean);
 
-  const enriched = batch.map((article) => {
+  const enriched = batchArticles.map((article) => {
     const feed = feeds.find((f) => f.id === article.feedId);
     const rated = ratings.some((r) => r.articleId === article.id);
     return {
@@ -329,7 +313,7 @@ router.post('/api/daily/more', async (_req, res) => {
 
   res.json({
     articles: enriched,
-    hasMore: end < unreadArticles.length,
+    hasMore: end < (settings.dailyArticleIds || []).length,
     batchIndex: newBatchIndex,
   });
 });
