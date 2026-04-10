@@ -29,6 +29,17 @@ export default function Home() {
 
   useEffect(() => {
     fetchDaily();
+
+    // Refetch when tab becomes visible again — handles leaving the app open
+    // overnight, so a new day triggers regeneration.
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDaily();
+        setLocalReadIds(new Set());
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [fetchDaily]);
 
   // Merge server-side readAt with local reads for the combined read set

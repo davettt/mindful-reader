@@ -232,7 +232,7 @@ router.get('/api/feeds/:id/health', async (req, res) => {
 
 router.get('/api/daily', async (_req, res) => {
   const settings = await getSettings();
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateString();
   const feeds = await getFeeds();
   const activeFeeds = feeds.filter((f) => f.active);
 
@@ -425,21 +425,19 @@ router.get('/api/insights', async (_req, res) => {
     return res.json({ overall: [], byCategory: {}, trends: {} });
   }
 
-  // Group ratings by week
-  const weeklyBuckets = {};
+  // Group ratings by day for finer granularity
+  const dailyBuckets = {};
   for (const rating of ratings) {
-    const date = new Date(rating.ratedAt);
-    const weekStart = getWeekStart(date);
-    const key = weekStart.toISOString().split('T')[0];
-    if (!weeklyBuckets[key]) weeklyBuckets[key] = [];
-    weeklyBuckets[key].push(rating);
+    const key = rating.ratedAt.split('T')[0]; // YYYY-MM-DD
+    if (!dailyBuckets[key]) dailyBuckets[key] = [];
+    dailyBuckets[key].push(rating);
   }
 
-  const overall = Object.entries(weeklyBuckets)
-    .map(([week, weekRatings]) => ({
-      week,
-      avg: weekRatings.reduce((sum, r) => sum + r.impact, 0) / weekRatings.length,
-      count: weekRatings.length,
+  const overall = Object.entries(dailyBuckets)
+    .map(([day, dayRatings]) => ({
+      week: day, // keep field name for client compatibility
+      avg: dayRatings.reduce((sum, r) => sum + r.impact, 0) / dayRatings.length,
+      count: dayRatings.length,
     }))
     .sort((a, b) => a.week.localeCompare(b.week));
 
@@ -450,17 +448,24 @@ router.get('/api/insights', async (_req, res) => {
     if (catRatings.length === 0) continue;
 
     const avg = catRatings.reduce((sum, r) => sum + r.impact, 0) / catRatings.length;
-    const recent = catRatings
-      .sort((a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime())
-      .slice(0, 5);
-    const recentAvg = recent.reduce((sum, r) => sum + r.impact, 0) / recent.length;
-    const older = catRatings.slice(5, 10);
-    const olderAvg =
-      older.length > 0 ? older.reduce((sum, r) => sum + r.impact, 0) / older.length : avg;
+    const sorted = [...catRatings].sort(
+      (a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime(),
+    );
 
-    let trend = 'steady';
-    if (recentAvg > olderAvg + 0.3) trend = 'improving';
-    else if (recentAvg < olderAvg - 0.3) trend = 'declining';
+    // Adaptive split: split in half so trend works even with few ratings
+    let trend = 'insufficient';
+    let recentAvg = avg;
+    if (catRatings.length >= 4) {
+      const half = Math.floor(catRatings.length / 2);
+      const recent = sorted.slice(0, half);
+      const older = sorted.slice(half);
+      recentAvg = recent.reduce((sum, r) => sum + r.impact, 0) / recent.length;
+      const olderAvg = older.reduce((sum, r) => sum + r.impact, 0) / older.length;
+
+      trend = 'steady';
+      if (recentAvg > olderAvg + 0.3) trend = 'improving';
+      else if (recentAvg < olderAvg - 0.3) trend = 'declining';
+    }
 
     byCategory[cat] = { avg, recentAvg, trend, totalRatings: catRatings.length };
   }
@@ -709,6 +714,14 @@ async function selectDailyArticles(settings) {
 
   await saveArticles(freshArticles);
   return selected;
+}
+
+function localDateString() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function getWeekStart(date) {
