@@ -5,12 +5,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import router from './router.js';
 import { PORT } from './config.js';
+import { buildStale } from './buildCheck.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 app.use(cors({ origin: true }));
 app.use(express.json());
+app.get('/api/build-status', (_req, res) => {
+  res.json({ stale: buildStale });
+});
+
 app.use(router);
 
 // Serve frontend in production
