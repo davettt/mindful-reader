@@ -256,9 +256,7 @@ router.get('/api/daily', async (_req, res) => {
   const watermark = (batchIndex + 1) * batchSize;
 
   const visibleIds = settings.dailyArticleIds.slice(0, watermark);
-  const visibleArticles = visibleIds
-    .map((id) => articles.find((a) => a.id === id))
-    .filter(Boolean);
+  const visibleArticles = visibleIds.map((id) => articles.find((a) => a.id === id)).filter(Boolean);
 
   const enriched = visibleArticles.map((article) => {
     const feed = feeds.find((f) => f.id === article.feedId);
@@ -283,6 +281,19 @@ router.post('/api/daily/more', async (_req, res) => {
   const settings = await getSettings();
   const batchSize = settings.dailyArticleCount || 3;
   const newBatchIndex = (settings.dailyBatchIndex || 0) + 1;
+  const start = newBatchIndex * batchSize;
+  const end = (newBatchIndex + 1) * batchSize;
+
+  // If the existing pool is exhausted, top up by re-running selection
+  // (which fetches fresh items + picks only unshown articles).
+  let dailyIds = settings.dailyArticleIds || [];
+  if (start >= dailyIds.length) {
+    const additional = await selectDailyArticles(settings);
+    const existing = new Set(dailyIds);
+    const newIds = additional.map((a) => a.id).filter((id) => !existing.has(id));
+    dailyIds = [...dailyIds, ...newIds];
+    settings.dailyArticleIds = dailyIds;
+  }
 
   settings.dailyBatchIndex = newBatchIndex;
   await saveSettings(settings);
@@ -291,13 +302,8 @@ router.post('/api/daily/more', async (_req, res) => {
   const ratings = await getRatings();
   const feeds = await getFeeds();
 
-  // Return only the new batch of articles
-  const start = newBatchIndex * batchSize;
-  const end = (newBatchIndex + 1) * batchSize;
-  const batchIds = (settings.dailyArticleIds || []).slice(start, end);
-  const batchArticles = batchIds
-    .map((id) => articles.find((a) => a.id === id))
-    .filter(Boolean);
+  const batchIds = dailyIds.slice(start, end);
+  const batchArticles = batchIds.map((id) => articles.find((a) => a.id === id)).filter(Boolean);
 
   const enriched = batchArticles.map((article) => {
     const feed = feeds.find((f) => f.id === article.feedId);
@@ -313,7 +319,7 @@ router.post('/api/daily/more', async (_req, res) => {
 
   res.json({
     articles: enriched,
-    hasMore: end < (settings.dailyArticleIds || []).length,
+    hasMore: end < dailyIds.length,
     batchIndex: newBatchIndex,
   });
 });
@@ -636,15 +642,12 @@ async function selectDailyArticles(settings) {
 
   if (activeFeeds.length === 0) return [];
 
-  // Refresh feeds that have no articles yet
+  // Fetch fresh items from every active feed (dedup by URL in fetchAndStoreArticles)
   for (const feed of activeFeeds) {
-    const feedArticles = articles.filter((a) => a.feedId === feed.id);
-    if (feedArticles.length === 0) {
-      try {
-        await fetchAndStoreArticles(feed);
-      } catch (err) {
-        console.error(`Failed to fetch ${feed.title}:`, err.message);
-      }
+    try {
+      await fetchAndStoreArticles(feed);
+    } catch (err) {
+      console.error(`Failed to fetch ${feed.title}:`, err.message);
     }
   }
 

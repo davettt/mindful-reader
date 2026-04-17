@@ -2,6 +2,15 @@
 
 All notable changes to Mindful Reader will be documented in this file.
 
+## [1.3.0] - 2026-04-17
+
+### Changed
+- **Daily selection now fetches fresh RSS items from every active feed at the start of each day** — previously only fetched feeds that had zero cached articles, which caused the reading pool to stagnate over time as existing feeds exhausted their `presented: false` inventory. Dedup by URL means no re-served articles
+
+### Added
+- **"Check for new articles" button** on the Home page when all daily articles are read and the server reports no more available — invokes the top-up path to fetch fresh RSS items and extend today's selection with any unshown arrivals
+- **`/api/daily/more` top-up** — when the current daily pool is exhausted, the endpoint re-runs selection (refresh + pick from unshown) and appends newly-selected article IDs to `dailyArticleIds`, so an active feed network never leaves you stuck on "That's all for today" while new posts exist
+
 ## [1.2.0] - 2026-04-15
 
 ### Added

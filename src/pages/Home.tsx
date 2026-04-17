@@ -165,6 +165,13 @@ export default function Home() {
               <div className="py-8">
                 <p className="font-serif text-lg text-stone-400">That&apos;s all for today.</p>
                 <p className="mt-1 text-sm text-stone-300">Enjoy the rest of your day.</p>
+                <button
+                  onClick={fetchMore}
+                  disabled={loading}
+                  className="mt-4 rounded-xl border border-stone-200 px-6 py-3 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-50 disabled:opacity-40"
+                >
+                  {loading ? 'Checking...' : 'Check for new articles'}
+                </button>
               </div>
             )}
           </div>
