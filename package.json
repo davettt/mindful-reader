@@ -1,6 +1,6 @@
 {
   "name": "mindful-reader",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A mindful RSS feed reader that respects your attention",
   "main": "server/index.js",
   "type": "module",

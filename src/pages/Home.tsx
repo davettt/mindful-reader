@@ -8,6 +8,14 @@ import ArticleCard from '../components/ArticleCard';
 import ArticleReader from '../components/ArticleReader';
 import ImpactRating from '../components/ImpactRating';
 import FeedHealthPrompt from '../components/FeedHealthPrompt';
+import WelcomeQuote from '../components/WelcomeQuote';
+
+const INITIAL_BATCH_SIZE = 3;
+const STALE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default function Home() {
   const {
@@ -30,16 +38,29 @@ export default function Home() {
   useEffect(() => {
     fetchDaily();
 
-    // Refetch when tab becomes visible again — handles leaving the app open
-    // overnight, so a new day triggers regeneration.
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
+    // Refetch when the stored fetch date falls behind today — covers tabs that
+    // stay visible across midnight (visibilitychange never fires) and PWAs
+    // reopened without a full reload.
+    const maybeRefresh = () => {
+      const { lastFetchDate } = useArticleStore.getState();
+      if (lastFetchDate !== todayStr()) {
         fetchDaily();
         setLocalReadIds(new Set());
       }
     };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') maybeRefresh();
+    };
     document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', maybeRefresh);
+    const interval = window.setInterval(maybeRefresh, STALE_CHECK_INTERVAL_MS);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', maybeRefresh);
+      window.clearInterval(interval);
+    };
   }, [fetchDaily]);
 
   // Merge server-side readAt with local reads for the combined read set
@@ -91,6 +112,11 @@ export default function Home() {
 
   const allRead = articles.length > 0 && articles.every((a) => readIds.has(a.id));
 
+  // Quote shows until the initial batch of articles has all been read; once
+  // hidden it stays hidden for the rest of the day, even after "show more".
+  const initialBatch = articles.slice(0, INITIAL_BATCH_SIZE);
+  const showQuote = initialBatch.length > 0 && !initialBatch.every((a) => readIds.has(a.id));
+
   if (loading && articles.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -102,6 +128,8 @@ export default function Home() {
   return (
     <div className="py-8">
       <h1 className="font-serif text-2xl font-semibold text-stone-800">{today}</h1>
+
+      <WelcomeQuote visible={showQuote} />
 
       {articles.length === 0 ? (
         <div className="mt-16 text-center">

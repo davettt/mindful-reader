@@ -26,6 +26,7 @@ export interface Article {
   presented: boolean;
   presentedAt: string | null;
   readAt?: string | null;
+  carriedAt?: string | null;
   rated?: boolean;
   feedTitle?: string;
   feedCategory?: string;

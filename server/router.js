@@ -234,14 +234,33 @@ router.get('/api/daily', async (_req, res) => {
   const settings = await getSettings();
   const today = localDateString();
   const feeds = await getFeeds();
-  const activeFeeds = feeds.filter((f) => f.active);
+  const batchSize = settings.dailyArticleCount || 3;
 
   const isNewDay = settings.lastDailyRefresh !== today || !settings.dailyArticleIds?.length;
 
   if (isNewDay) {
-    // Generate fresh daily selection for a new day
-    const selected = await selectDailyArticles(settings);
-    settings.dailyArticleIds = selected.map((a) => a.id);
+    // Carry over unread articles from yesterday — one grace day only.
+    // `carriedAt` prevents an article that still goes unread from rolling forward a second time.
+    const prevIds = settings.dailyArticleIds || [];
+    const allArticles = await getArticles();
+    const carryovers = prevIds
+      .map((id) => allArticles.find((a) => a.id === id))
+      .filter((a) => a && !a.readAt && !a.carriedAt)
+      .slice(0, batchSize);
+
+    if (carryovers.length > 0) {
+      const now = new Date().toISOString();
+      for (const article of carryovers) {
+        article.carriedAt = now;
+      }
+      await saveArticles(allArticles);
+    }
+
+    const carryoverIds = carryovers.map((a) => a.id);
+    const freshSelection = await selectDailyArticles(settings);
+    const freshIds = freshSelection.map((a) => a.id).filter((id) => !carryoverIds.includes(id));
+
+    settings.dailyArticleIds = [...carryoverIds, ...freshIds];
     settings.dailyBatchIndex = 0;
     settings.lastDailyRefresh = today;
     await saveSettings(settings);
@@ -251,7 +270,6 @@ router.get('/api/daily', async (_req, res) => {
   // Watermark only advances when user clicks "show more"
   const articles = await getArticles();
   const ratings = await getRatings();
-  const batchSize = settings.dailyArticleCount || 3;
   const batchIndex = settings.dailyBatchIndex || 0;
   const watermark = (batchIndex + 1) * batchSize;
 

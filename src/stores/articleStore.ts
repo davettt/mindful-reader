@@ -3,11 +3,16 @@ import { create } from 'zustand';
 import type { Article, FeedHealthWarning, ImpactLevel } from '../types';
 import * as api from '../services/api';
 
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 interface ArticleState {
   articles: Article[];
   hasMore: boolean;
   loading: boolean;
   warning: FeedHealthWarning | null;
+  lastFetchDate: string | null;
   fetchDaily: () => Promise<void>;
   fetchMore: () => Promise<void>;
   rateArticle: (
@@ -24,11 +29,17 @@ export const useArticleStore = create<ArticleState>((set) => ({
   hasMore: false,
   loading: true,
   warning: null,
+  lastFetchDate: null,
   fetchDaily: async () => {
     set({ loading: true });
     try {
       const data = await api.getDaily();
-      set({ articles: data.articles, hasMore: data.hasMore, loading: false });
+      set({
+        articles: data.articles,
+        hasMore: data.hasMore,
+        loading: false,
+        lastFetchDate: todayStr(),
+      });
     } catch {
       set({ loading: false });
     }

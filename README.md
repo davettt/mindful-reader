@@ -2,7 +2,7 @@
 
 A calm RSS feed reader that respects your attention. No unread counts, no inbox pressure — just a few thoughtful articles each day.
 
-Inspired by the philosophy of *listen, feel, breathe* — Mindful Reader presents 3-5 articles daily with variety across your interests, tracks how much each feed actually impacts your thinking, and gently suggests when it's time to let a feed go.
+Inspired by the philosophy of _listen, feel, breathe_ — Mindful Reader presents 3-5 articles daily with variety across your interests, tracks how much each feed actually impacts your thinking, and gently suggests when it's time to let a feed go.
 
 ## Features
 
@@ -34,15 +34,15 @@ pm2 start ecosystem.config.js --only mindful-reader
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
+| Layer    | Technology                            |
+| -------- | ------------------------------------- |
 | Frontend | React, TypeScript, Tailwind CSS, Vite |
-| Backend | Express 5, Node.js (ES modules) |
-| State | Zustand |
-| Charts | Recharts |
-| RSS | rss-parser |
-| AI | Anthropic Claude / OpenAI (optional) |
-| Storage | JSON files in `local_data/` |
+| Backend  | Express 5, Node.js (ES modules)       |
+| State    | Zustand                               |
+| Charts   | Recharts                              |
+| RSS      | rss-parser                            |
+| AI       | Anthropic Claude / OpenAI (optional)  |
+| Storage  | JSON files in `local_data/`           |
 
 ## Configuration
 
